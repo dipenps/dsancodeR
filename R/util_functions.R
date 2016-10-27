@@ -6,7 +6,8 @@ library('dplyr')
 #library('purrr')
 library('tibble')
 #library('modelr')
-
+library('affy')
+library('readxl')
 ###################
 # R hacks
 ###################
@@ -713,13 +714,18 @@ biogenpalette <- c('#1c5a7d', '#578196', '#2573ba', '#6dad46', '#679acb',
                    '#519643', '#7cc3e2', '#99ca3c', '#c7dd72', '#dde5ae', '#7c878e')
 
 
-getGlmnetCoef <- function(f, s='lambda.min', intercept=F){
-  c <- coef(f, s=s)
+getGlmnetCoef <- function(mod, s='lambda.min', intercept=F){
+  c <- coef(mod, s=s)
   o <- abs(c[which(c!=0),]) %>% sort(decreasing = T) %>% as.data.frame
   o$var <- rownames(o)
   colnames(o)[1] <- 'coef'
   if(!intercept) o <- o[-match("(Intercept)", o$var),]
   return(o)
+}
+
+getGlmnetTopN <- function(mod, N=10, intercept=F){
+  S <- mod$lambda[which(mod$nzero > N)[1]]
+  return(getGlmnetCoef(mod, s=S))
 }
 
 getTrnProbes <- function(dat, cov){
@@ -823,6 +829,25 @@ pacc <- function(h, c, B=10000){
   return(list(zscore=z, pvalue=pnorm(z)))
 }
 
+match0 <- function(x,y){
+  out <- match(x,y)
+  out <- out[!is.na(out)]
+  return(out)
+}
 
+median0 <- function(x) median(x, na.rm=T)
+sum0 <- function(x) sum(x, na.rm=T)
+mean0 <- function(x) mean(x, na.rm=T)
 
-
+cut_number2 <- function(x, Q=4, dec=F, prefix="Q", value=NULL){
+  if(!is.null(value)) {
+    y <- ifelse(x >= value, "hi", "lo")
+    return(y)
+  }
+  
+  y <- ggplot2::cut_number(x, Q)
+  l <- levels(y)
+  if(dec) l <- rev(l)
+  q <- paste0(prefix, 1:Q)
+  return(q[match(y,l)])
+}
