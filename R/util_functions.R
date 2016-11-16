@@ -98,15 +98,16 @@ plotpc <- function(x, pc1=1, pc2=2, group=NULL, col='red', title='PC plot', ...)
 # Affy tools
 ###################
 affy2sym <- function(x, PM=F, allprobes = T){
-  require(hgu133plus2.db)
-  require(plyr)
+  #require(hgu133plus2.db)
+  #require(plyr)
   if(allprobes) {
     y <- toggleProbes(hgu133plus2SYMBOL, "all")
   } else {
     y <- hgu133plus2SYMBOL
   }
   # Convert to a list
-  yy <- as.list(y[x])
+  #print(y[x])
+  yy <- AnnotationDbi::as.list(y[x])
   yy2 <- sapply(yy, function(z) if (length(z) > 1) { paste0(z, collapse = " /// ")} else (z))
   out <- ldply(yy2)
   if(length(out)>0) colnames(out) <- c("Probe Set ID", "Gene Symbol")
@@ -114,15 +115,15 @@ affy2sym <- function(x, PM=F, allprobes = T){
 }
 
 affy2uniprot <- function(x, PM=F, allprobes = T){
-  require(hgu133plus2.db)
-  require(plyr)
+  #require(hgu133plus2.db)
+  #require(plyr)
   if(allprobes) {
     y <- toggleProbes(hgu133plus2UNIPROT, "all")
   } else {
     y <- hgu133plus2UNIPROT
   }
   # Convert to a list
-  yy <- as.list(y[x])
+  yy <- AnnotationDbi::as.list(y[x])
   yy2 <- sapply(yy, function(z) if (length(z) > 1) { paste0(z, collapse = " /// ")} else (z))
   out <- ldply(yy2)
   if(length(out)>0) colnames(out) <- c("Probe Set ID", "UniprotID")
@@ -130,15 +131,15 @@ affy2uniprot <- function(x, PM=F, allprobes = T){
 }
 
 affy2Entrez <- function(x, PM=F, allprobes = T){
-  require(hgu133plus2.db)
-  require(plyr)
+  #require(hgu133plus2.db)
+  #require(plyr)
   if(allprobes) {
     y <- toggleProbes(hgu133plus2ENTREZID, "all")
   } else {
     y <- hgu133plus2ENTREZID
   }
   # Convert to a list
-  yy <- as.list(y[x])
+  yy <- AnnotationDbi::as.list(y[x])
   yy2 <- sapply(yy, function(z) if (length(z) > 1) { paste0(z, collapse = " /// ")} else (z))
   out <- ldply(yy2)
   colnames(out) <- c("Probe Set ID", "Entrez ID")
@@ -146,16 +147,16 @@ affy2Entrez <- function(x, PM=F, allprobes = T){
 }
 
 sym2affy <- function(x, PM=F, allprobes = T){
-  require(hgu133plus2.db)
-  require(plyr)
-  require(reshape2)
+  #require(hgu133plus2.db)
+  #require(plyr)
+  #require(reshape2)
   if(allprobes) {
     y <- toggleProbes(hgu133plus2ALIAS2PROBE, "all")
   } else {
     y <- hgu133plus2ALIAS2PROBE
   }
   # Convert to a list
-  yy <- as.list(y[x]) 
+  yy <- AnnotationDbi::as.list(y[x]) 
   out <- melt(yy)
   colnames(out) <- c("Probe Set ID", "Gene Symbol")
   return(out)
@@ -188,7 +189,7 @@ filter_affy <- function(x, mthr=4, mcv=NULL){
   }
   
   if(!is.null(mcv)){
-    require(genefilter)
+    #require(genefilter)
     xcv <- rowSds(x)/rowMeans(x)
     filt <- filt & xcv >= mcv
   }
@@ -715,8 +716,8 @@ biogenpalette <- c('#1c5a7d', '#578196', '#2573ba', '#6dad46', '#679acb',
 
 
 getGlmnetCoef <- function(mod, s='lambda.min', intercept=F){
-  c <- coef(mod, s=s)
-  o <- abs(c[which(c!=0),]) %>% sort(decreasing = T) %>% as.data.frame
+  c <- coef.cv.glmnet(mod, s=s)
+  o <- abs(c[which(as.vector(c)!=0),]) %>% sort(decreasing = T) %>% as.data.frame
   o$var <- rownames(o)
   colnames(o)[1] <- 'coef'
   if(!intercept) o <- o[-match("(Intercept)", o$var),]
@@ -725,7 +726,7 @@ getGlmnetCoef <- function(mod, s='lambda.min', intercept=F){
 
 getGlmnetTopN <- function(mod, N=10, intercept=F){
   S <- mod$lambda[which(mod$nzero > N)[1]]
-  return(getGlmnetCoef(mod, s=S))
+  return(getGlmnetCoef(mod, s=S, intercept = intercept))
 }
 
 getTrnProbes <- function(dat, cov){
