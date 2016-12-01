@@ -256,8 +256,26 @@ setMethod("initialize", "ExpressionSetDC",
           })
 
 
+getSurv <- function(clin, outcome='relapse'){
+  require(survival)
+  if(outcome=='relapse') {
+    return(Surv(clin$t_frelapse, clin$ind_relapse=="Yes"))
+  } else {
+    return(Surv(clin[[paste0("t_", outcome)]], clin[[paste0(outcome, "_flag")]]=="Yes"))
+  }
+}
 
+plotSurvCov <- function(clin, outcome='relapse', covariate=NULL, ylim=c(0,1)){
+  s <- getSurv(clin, outcome)
+  plot(survfit(s~covariate), col=1:length(unique(covariate)), 
+       ylim=ylim, main=outcome, ylab='Fraction', xlab='Time')
+  print(getSurvReg(clin, outcome, covariate))
+}
 
+getSurvReg <- function(clin, outcome='relapse', covariate=NULL, ylim=c(0,1)){
+  s <- getSurv(clin, outcome)
+  summary(coxph(s~factor(covariate)))
+}
 
 
 GSscore <- function(gset, dat, B=100){
@@ -540,21 +558,21 @@ topTable2 <- function(x, ...){
 
 fitEnsemble <- function(trdat, cl, method='all'){
   outli <- list()
-  if(method=='all'){
-    # PAM
-    #######################
-    print('Fitting PAMR')
-    require(pamr)
-    outli$pamr.train <- pamr.train(list(x=trdat, y=factor(cl)), n.threshold=100)
-    outli$pamcv <- pamr.cv(outli$pamr.train, list(x=trdat, y=factor(cl)))
-  }
+  # if(method=='all'){
+  #   # PAM
+  #   #######################
+  #   print('Fitting PAMR')
+  #   require(pamr)
+  #   outli$pamr.train <- pamr.train(list(x=trdat, y=factor(cl)), n.threshold=100)
+  #   outli$pamcv <- pamr.cv(outli$pamr.train, list(x=trdat, y=factor(cl)))
+  # }
   if(method=='all'){
     print('Fitting Lasso')
     require(glmnet)
     # Lasso
     #######################
     FAM <- ifelse(length(unique(cl))==2, 'binomial', 'multinomial')
-    outli$lasso.cvfit <- cv.glmnet(x=t(trdat), y=factor(cl), family=FAM, standardize=T, alpha=1)
+    outli$lasso.cvfit <- cv.glmnet(x=t(trdat), y=factor(cl), family=FAM, standardize=T, alpha=0.5)
   }
   if(method=='all'){
     print('Fitting RandomForest')
@@ -577,6 +595,17 @@ fitEnsemble <- function(trdat, cl, method='all'){
     #######################
     outli$C50.fit <- C5.0(x=t(trdat), y=factor(cl))
   }
+  if(method=='all'){
+    print('Fitting XGBOOST')
+    require(xgboost)
+    xtr <- xgb.DMatrix(t(trdat), label=cl)
+    FAM <- ifelse(length(unique(cl))==2, "binary:logistic", "multi:softmax")
+    NUMCLASS = length(unique(cl))
+    PLIST <- list(objective = FAM, max.depth =3, eta = 1, nthread=2)
+    if(NUMCLASS > 2) PLIST$num_class=NUMCLASS
+    outli$xgb.fit <- xgboost(data=xtr, nrounds=3, nfold=5, params=PLIST)
+  }
+  
   # if(method='all'){
   #   require(gbm)
   #   print('Fitting GBM')
@@ -612,15 +641,15 @@ fitEnsemble <- function(trdat, cl, method='all'){
   return(outli)
 }
 
-predEnsembl <- function(trm, ndat, plot=F){
+predEnsembl <- function(trm, ndat, plot=F, aggregate=c('average', 'weighted')[1]){
   outli <- list()
   runmodels <- names(trm)
   
-  # PAMR
-  if('pamcv' %in% runmodels){
-    thr <- max(0, trm$pamcv$threshold[which.min(trm$pamcv$error)], na.rm=T)
-    outli$pamr <- as.numeric(pamr.predict(trm$pamr.train, newx=ndat, type="class", threshold=thr))
-  }
+  # # PAMR
+  # if('pamcv' %in% runmodels){
+  #   thr <- max(0, trm$pamcv$threshold[which.min(trm$pamcv$error)], na.rm=T)
+  #   outli$pamr <- as.numeric(pamr.predict(trm$pamr.train, newx=ndat, type="class", threshold=thr))
+  # }
   
   # Lasso
   if('lasso.cvfit' %in% runmodels){
@@ -630,22 +659,36 @@ predEnsembl <- function(trm, ndat, plot=F){
   
   # RandomForest
   if('rf.fit' %in% runmodels){
-    outli$randomforest <- as.numeric(predict(trm$rf.fit, newdata=t(ndat)))
+    outli$randomforest <- as.numeric(predict(trm$rf.fit, newdata=t(ndat))) - 1
   }
   
   # SVM
   if('svm.fit' %in% runmodels){
-    outli$svm <- as.numeric(predict(trm$svm.fit$best.model, newdata=t(ndat)))
+    outli$svm <- as.numeric(predict(trm$svm.fit$best.model, newdata=t(ndat))) - 1
   }
   
   # C5.0
   if('C50.fit' %in% runmodels){
-    outli$C5.0 <- as.numeric(predict(trm$C50.fit, newdata=t(ndat)))
+    outli$C5.0 <- as.numeric(predict(trm$C50.fit, newdata=t(ndat))) - 1
+  }
+  
+  # XGBOOST
+  if('xgb.fit' %in% runmodels){
+    xp <- as.numeric(predict(trm$xgb.fit, newdata=t(ndat)))
+    if(length(unique(xp)) > 5) xp <- ifelse(xp > 0.5, 1, 0)
+    outli$xgboost <- xp
   }
   
   outdf <- list()
   outdf$preddf <- as.data.frame(outli)
-  outdf$predmax <- as.numeric(apply(outdf$preddf, 1, function(x) names(sort(-table(x)))[1]))
+  
+  if(aggregate=='average'){
+    outdf$predmax <- as.numeric(apply(outdf$preddf, 1, function(x) names(sort(-table(x)))[1]))
+  } else if(aggregate=='weighted'){
+    w <- apply(outdf$preddf, 2, function(x) dist(t(data.frame(x=x, y=cl)), method='manhattan'))
+    w <- 1-w/length(cl)
+    outdf$predmax <- round(as.vector(data.matrix(outdf$preddf) %*% w)/ncol(outdf$preddf))
+  }
   names(outdf$predmax) <- colnames(ndat)
   
   if(plot) {
