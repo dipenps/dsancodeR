@@ -51,6 +51,14 @@ center_columns <- function(x) {
   c + scale(x, scale=F)
 }
 
+coefvar <- function(x){
+  sd(x)/mean(x)
+}
+
+coefvarmat <- function(x){
+  genefilter::rowSds(x)/rowMeans(x)
+}
+
 vprint <- function(x){
   cat(paste0(x, '\n'))
 }
@@ -93,7 +101,21 @@ plotpc <- function(x, pc1=1, pc2=2, group=NULL, col='red', title='PC plot', ...)
   if(!is.null(group)) points(x$v[group, pc1], x$v[group, pc2], col=col, pch=19)
 }
 
-
+getOutlier <- function(x, method='median', thr=4){
+  if(method=='median'){
+    mx <- median(x)
+    devx <- mad(x)
+  } else if(method=='mean'){
+    mx <- mean(x)
+    devx <- sd(x)
+  }
+  
+  lx <- mx - devx * thr
+  ux <- mx + devx * thr
+  
+  outlier <- which(x < lx | x > ux)
+  return(outlier)
+}
 ###################
 # Affy tools
 ###################
@@ -146,6 +168,11 @@ affy2Entrez <- function(x, PM=F, allprobes = T){
   return(out)
 }
 
+getAffySymbols <- function(){
+  y <- toggleProbes(hgu133plus2.db::hgu133plus2SYMBOL, "all")
+  return(unlist(as.list(y)) %>% unique)
+}
+
 sym2affy <- function(x, PM=F, allprobes = T){
   #require(hgu133plus2.db)
   #require(plyr)
@@ -161,6 +188,8 @@ sym2affy <- function(x, PM=F, allprobes = T){
   colnames(out) <- c("Probe Set ID", "Gene Symbol")
   return(out)
 }
+
+catPaste0 <- function(x) cat(paste0(x,'\n'))
 
 hkg2affy <- function(x){
   hkgenes <- read.csv('~/Documents/work/data/affy/HKG_Hendrik_2007.csv', header=T, as.is=T)
@@ -265,11 +294,18 @@ getSurv <- function(clin, outcome='relapse'){
   }
 }
 
-plotSurvCov <- function(clin, outcome='relapse', covariate=NULL, ylim=c(0,1)){
+plotSurvCov <- function(clin, outcome='relapse', covariate=NULL, ylim=c(0,1), main=NULL, 
+                        print=T, returnmod=F, pval=F){
   s <- getSurv(clin, outcome)
+  M=main
+  if(is.null(M)) M=outcome
+  mod <- getSurvReg(clin, outcome, covariate)
+  if(pval) {pv <- round(mod$coefficients[5],4)} else {pv=''} 
   plot(survfit(s~covariate), col=1:length(unique(covariate)), 
-       ylim=ylim, main=outcome, ylab='Fraction', xlab='Time')
-  print(getSurvReg(clin, outcome, covariate))
+       ylim=ylim, main=paste0(M, '\n',pv), ylab='Fraction', xlab='Time')
+  
+  if(print) print(mod)
+  if(returnmod) return(mod)
 }
 
 getSurvReg <- function(clin, outcome='relapse', covariate=NULL, ylim=c(0,1)){
@@ -335,6 +371,10 @@ madz <- function(x){
   return(z)
 }
 
+boxplot2 <- function(f, ...){
+  pv <- anova(lm(f))$Pr[1]
+  boxplot(f, main=round(pv, 5), pch=19, ...)
+}
 
 ###################
 # CompBio tools
@@ -482,6 +522,13 @@ limma1mat <- function(x,labels=NULL,fdr=0.05,thr=log2(1.5), mfilt=NULL, cfilt=TR
   if(is.null(labels)) stop('Must provide labels for limma 1 mat')
   des <- model.matrix(~labels)
   
+  # NA filter
+  naf <- which(is.na(labels))
+  if(length(naf) > 0){
+    print(paste("Removing NA samples ", naf, sep=" "))
+    x <- x[,-naf]
+    labels <- labels[-naf]
+  }
   # Mean filter
   if(!is.null(mfilt)){
     x <- x[rowMeans(x)>=mfilt, ]
@@ -641,6 +688,7 @@ fitEnsemble <- function(trdat, cl, method='all'){
   return(outli)
 }
 
+
 predEnsembl <- function(trm, ndat, plot=F, aggregate=c('average', 'weighted')[1]){
   outli <- list()
   runmodels <- names(trm)
@@ -791,7 +839,8 @@ getTrnProbes <- function(dat, cov){
 plotCO <- function(clin, cl, col=NULL){
   par(mfrow=c(4,4))
   for(F in c('GDVOLBL', 'GDLESBL', 'T2VOLBL',  'T1VOLBL', 'PGLB_MSSS', 'NBVBL', 
-             'newT2_24wk', 'volGD_24wk', 'cntGD_24wk', 'WBMTRBL', 'BVpch_24wk', 'ONSYRS', 'num_relapse', 'age')){
+             'newT2_24wk', 'volGD_24wk', 'cntGD_24wk', 'WBMTRBL', 'BVpch_24wk', 'ONSYRS', 
+             'num_relapse', 'age', 'MSFCBL', 'BASEALCimp')){
     filt <- rep(TRUE, nrow(clin))
     ymax = quantile(clin[[F]][filt], 0.9, na.rm=T)
     ymin = quantile(clin[[F]][filt], 0.05, na.rm=T)
