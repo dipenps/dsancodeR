@@ -51,6 +51,12 @@ center_columns <- function(x) {
   c + scale(x, scale=F)
 }
 
+xfer_dimnames <- function(x,y){
+  rownames(x) <- rownames(y)
+  colnames(x) <- colnames(y)
+  return(x)
+}
+
 coefvar <- function(x){
   sd(x)/mean(x)
 }
@@ -288,9 +294,9 @@ setMethod("initialize", "ExpressionSetDC",
 getSurv <- function(clin, outcome='relapse'){
   require(survival)
   if(outcome=='relapse') {
-    return(Surv(clin$t_frelapse, clin$ind_relapse=="Yes"))
+    return(Surv(clin$pmwg.t_frelapse, clin$pmwg.ind_relapse=="Yes"))
   } else {
-    return(Surv(clin[[paste0("t_", outcome)]], clin[[paste0(outcome, "_flag")]]=="Yes"))
+    return(Surv(clin[[paste0("pmwg.t_", outcome)]], clin[[paste0('pmwg.', outcome, "_flag")]]=="Yes"))
   }
 }
 
@@ -838,9 +844,9 @@ getTrnProbes <- function(dat, cov){
 
 plotCO <- function(clin, cl, col=NULL){
   par(mfrow=c(4,4))
-  for(F in c('GDVOLBL', 'GDLESBL', 'T2VOLBL',  'T1VOLBL', 'PGLB_MSSS', 'NBVBL', 
+  for(F in paste0('pmwg.', c('GDVOLBL', 'GDLESBL', 'T2VOLBL',  'T1VOLBL', 'PGLB_MSSS', 'NBVBL', 
              'newT2_24wk', 'volGD_24wk', 'cntGD_24wk', 'WBMTRBL', 'BVpch_24wk', 'ONSYRS', 
-             'num_relapse', 'age', 'MSFCBL', 'BASEALCimp')){
+             'num_relapse', 'age', 'MSFCBL', 'BASEALCimp'))){
     filt <- rep(TRUE, nrow(clin))
     ymax = quantile(clin[[F]][filt], 0.9, na.rm=T)
     ymin = quantile(clin[[F]][filt], 0.05, na.rm=T)
@@ -852,13 +858,13 @@ plotCO <- function(clin, cl, col=NULL){
 
 plotCO2 <- function(clin, cl){
   newdf <- list()
-  newdf$frac_prog6mo[['0']] <- mean(clin$t_prog12w < 183)
-  newdf$frac_edss6mo[['0']] <- mean(clin$t_edssplus < 183)
-  newdf$frac_relapse6mo[['0']] <- mean(clin$t_frelapse < 183)
+  newdf$frac_prog6mo[['0']] <- mean(clin$pwmg.t_prog12w < 183)
+  newdf$frac_edss6mo[['0']] <- mean(clin$pmwg.t_edssplus < 183)
+  newdf$frac_relapse6mo[['0']] <- mean(clin$pmwg.t_frelapse < 183)
   for(K in 1:max(cl)){
-    newdf$frac_prog6mo[[as.character(K)]] <- mean(clin$t_prog12w[cl==K] < 183)
-    newdf$frac_edss6mo[[as.character(K)]] <- mean(clin$t_edssplus[cl==K] < 183)
-    newdf$frac_relapse6mo[[as.character(K)]] <- mean(clin$t_frelapse[cl==K] < 183)
+    newdf$frac_prog6mo[[as.character(K)]] <- mean(clin$pwmg.t_prog12w[cl==K] < 183)
+    newdf$frac_edss6mo[[as.character(K)]] <- mean(clin$pwmg.t_edssplus[cl==K] < 183)
+    newdf$frac_relapse6mo[[as.character(K)]] <- mean(clin$pwmg.t_frelapse[cl==K] < 183)
   }
   return(newdf)
 }

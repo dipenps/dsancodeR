@@ -7,4 +7,4 @@ Author: Dipen Sangurdekar <dipen.sangurdekar@gmail.com>
 Maintainer: Dipen Sangurdekar <dipen.sangurdekar@gmail.com>
 NeedsCompilation: no
 Packaged: 2016-09-01 18:57:25 UTC; dsangurd
-Depends: dplyr, tibble, tidyr, stringr, readr, rafalib, limma, hgu133plus2.db, plyr, reshape2, genefilter, affy
+Depends: tidyverse, ggplot2, rafalib, limma, hgu133plus2.db, reshape2, genefilter, affy
