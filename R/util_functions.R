@@ -61,6 +61,30 @@ coefvar <- function(x){
   sd(x)/mean(x)
 }
 
+rankcor <- function(x,y,pval=F){
+  if(!pval) return(cor(x,y,method='spearman',use='complete.obs'))
+  if(pval) {
+    temp <- cor.test(x,y,method='spearman',use='complete.obs')
+    out <- list(rho=temp$estimate, pval=temp$p.value)
+    return(out)
+  }
+}
+
+topgenes <- function(m, N=500, type='var', out='mat'){
+  if(type=='var') {
+    rv <- genefilter::rowVars(m)
+  } else if(type=='sum'){
+    rv <- rowSums(m)
+  }
+  rvord <- order(rv, decreasing=T)[1:N]
+  
+  if(out=='mat'){
+    return(m[rvord,])
+  } else if(out=='row'){
+    return(rvord)
+  }
+}
+
 coefvarmat <- function(x){
   genefilter::rowSds(x)/rowMeans(x)
 }
@@ -102,9 +126,26 @@ plotscree <- function(x, title='Screeplot', ...){
   plot(y, xlab='Eigenvalue $#', ylab='Fraction variation explained', main=title, pch=19)
 }
 
-plotpc <- function(x, pc1=1, pc2=2, group=NULL, col='red', title='PC plot', ...){
-  plot(x$v[,pc1], x$v[,pc2], xlab=paste0('PC', pc1), ylab=paste0('PC', pc2), pch=19, main=title, ...)
-  if(!is.null(group)) points(x$v[group, pc1], x$v[group, pc2], col=col, pch=19)
+# plotpc <- function(x, pc1=1, pc2=2, group=NULL, col='red', title='PC plot', ...){
+#   plot(x$v[,pc1], x$v[,pc2], xlab=paste0('PC', pc1), ylab=paste0('PC', pc2), pch=19, main=title, ...)
+#   if(!is.null(group)) points(x$v[group, pc1], x$v[group, pc2], col=col, pch=19)
+# }
+
+plotpc <- function(x, pc1=1, pc2=2, group=NULL, title='PCA plot'){
+  xax <- paste0('pc', pc1)
+  yax <- paste0('pc', pc2)
+  varex <- round(x$d^2*100/sum(x$d^2))
+  xl <- glue::glue("{xax}: {varex[pc1]}% variance")
+  yl <- glue::glue("{yax}: {varex[pc2]}% variance")
+  out <-  ggplot2::ggplot(data.frame(x$v), aes_string(xax, yax)) + theme_bw() + xlab(xl) + ylab(yl) + ggtitle(title)
+  if(!is.null(group)){
+    out <- out + geom_point(aes(col=group))
+  } else{
+    out <- out + geom_point()
+  }
+  print(out)
+  #plot(x$v[,pc1], x$v[,pc2], xlab=paste0('PC', pc1), ylab=paste0('PC', pc2), pch=19, main=title, ...)
+  #if(!is.null(group)) points(x$v[group, pc1], x$v[group, pc2], col=col, pch=19)
 }
 
 getOutlier <- function(x, method='median', thr=4){
@@ -230,6 +271,26 @@ filter_affy <- function(x, mthr=4, mcv=NULL){
   }
   
   return(which(filt))
+}
+
+ensembl2sym <- function(eid, concatenate=F, striptail=T){
+  data(ensembl38)
+  #ens <- readxl::read_excel('~/work/data/reference_genomes/hg38/ensembl_biomart_GRCh38_gene_info.xlsx')
+  #ens <- readxl::read_excel('data/ensembl_biomart_GRCh38_gene_info.xlsx')
+  
+  ens <- ensembl38 %>% dplyr::select(`Gene stable ID`, `Gene name`) %>% unique
+  
+  if(striptail) eid <- str_replace(eid, "\\.\\d+", "")
+  ensid <- match(eid, ens$`Gene stable ID`)
+  deprecated_ensid <- which(is.na(ensid))
+  ercc <- grep("ERCC", eid)
+  #duplicated_ensid <- 
+  if(concatenate) {
+    sym <- paste0(ens$`Gene name`[ensid], "_", str_sub(eid, 10,15))
+  } else{
+    sym <- ens$`Gene name`[ensid]
+  }
+  return(list(genename=sym, deprecated_ensid=deprecated_ensid, ercc=ercc))
 }
 
 GSA.read.gmt=function(filename){
@@ -603,11 +664,37 @@ limmacov <- function(x,covariates=NULL,fdr=0.05,thr=log2(1.5), mfilt=NULL, cfilt
   return(out)
 }
 
+format_results_table <- function(tt, type='deseq'){
+  if(type=='deseq') {
+    out <- tt %>% dplyr::select(1,2,3,7)
+    colnames(out) <- c('Gene', 'AvgExpr', 'log2FoldChange', 'FDR')
+  }
+  if(type=='limma') {
+    out <- tt %>% tbl_df %>% rownames_to_column('row') %>% dplyr::select(1,3,2,6)
+    colnames(out) <- c('Gene', 'AvgExpr', 'log2FoldChange', 'FDR')
+  }
+  return(out)
+}
+
 topTable2 <- function(x, ...){
   t <- topTable(x, ...)
   t <- cbind(t, affy2sym(rownames(t)))
   return(t)
 }
+
+volcanoDESeq <- function(rmat, gstrip=F, top=10, vthr=1.5, fdr=0.05, print=TRUE, title=NULL){
+  #if(gstrip) rmat$Gene <- str_split(rmat$row, "_", simplify=T)[,1]
+  rmat$col <- ifelse(rmat$padj < fdr & abs(rmat$log2FoldChange) > log2(vthr), 'red', 'lightgray')
+  out <- ggplot(rmat, aes(log2FoldChange, -log10(padj))) + geom_point(col=rmat$col) + theme_bw() + xlab('log2FoldChange') + 
+    ylab('-log10(FDR)') + geom_vline(xintercept=c(log2(vthr), log2(1/vthr))) + geom_hline(yintercept=-log10(fdr))
+  if(!is.null(title)) out <- out + ggtitle(title)
+  if(print) {
+    print(out)
+  } else{
+    return(out)
+  }
+}
+
 
 fitEnsemble <- function(trdat, cl, method='all'){
   outli <- list()
