@@ -1,13 +1,10 @@
 library(rafalib)
-library('stringr')
-library('tidyr')
-library('readr')
-library('dplyr')
-#library('purrr')
-library('tibble')
-#library('modelr')
-library('affy')
-library('readxl')
+library(tidyr)
+library(dplyr)
+library(affy)
+library(readxl)
+library(tibble)
+library(stringr)
 ###################
 # R hacks
 ###################
@@ -70,8 +67,10 @@ rankcor <- function(x,y,pval=F){
   }
 }
 
-topgenes <- function(m, N=500, type='var', out='mat'){
+topgenes <- function(m, N=500, type='var', out='mat', cov=NULL){
+  
   if(type=='var') {
+    if(!is.null(cov)) m <- rowMeans(m) + t(resid(lm(t(m) ~ cov)))
     rv <- genefilter::rowVars(m)
   } else if(type=='sum'){
     rv <- rowSums(m)
@@ -352,14 +351,31 @@ setMethod("initialize", "ExpressionSetDC",
           })
 
 
-getSurv <- function(clin, outcome='relapse'){
+getSurv <- function(clin, outcome='relapse', output='Surv'){
   require(survival)
-  if(outcome=='relapse') {
-    return(Surv(clin$pmwg.t_frelapse, clin$pmwg.ind_relapse=="Yes"))
-  } else {
-    return(Surv(clin[[paste0("pmwg.t_", outcome)]], clin[[paste0('pmwg.', outcome, "_flag")]]=="Yes"))
+  if(output=='Surv'){
+    if(outcome=='relapse') {
+      return(Surv(clin$pmwg.t_frelapse, clin$pmwg.ind_relapse=="Yes"))
+    } else {
+      return(Surv(clin[[paste0("t_", outcome)]], clin[[paste0(outcome, "_event")]]==1))
+    }
+  } else if(output=='df'){
+    if(outcome=='relapse') {
+      return(data.frame(time=clin$pmwg.t_frelapse, status=ifelse(clin$pmwg.ind_relapse=="Yes",1,0)))
+    } else {
+      return(data.frame(time=clin[[paste0("t_", outcome)]], status=ifelse(clin[[paste0(outcome, "_event")]]==1,1,0)))
+    }
   }
 }
+
+mysurvfn <- function(vec, clinfile, param, thr=0.2, title=NULL){
+  require(survminer)
+  filt <- slicedat(vec, thr=thr)
+  tempdf <- getSurv(clinfile[filt$id, ], param, output='df')
+  tempdf$label <-filt$label
+  ggsurvplot(survfit(Surv(time,status)~factor(label), data=tempdf), data=tempdf, pval=TRUE, conf.int = TRUE, title=title)[[1]]
+}
+
 
 plotSurvCov <- function(clin, outcome='relapse', covariate=NULL, ylim=c(0,1), main=NULL, 
                         print=T, returnmod=F, pval=F){
