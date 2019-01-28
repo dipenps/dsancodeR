@@ -1,10 +1,10 @@
 Package: dsancodeR
 Title: My R toolkit
 Description: Collection of everday functions
-Version: 0.1
+Version: 0.2
 License: Private
 Author: Dipen Sangurdekar <dipen.sangurdekar@gmail.com>
 Maintainer: Dipen Sangurdekar <dipen.sangurdekar@gmail.com>
 NeedsCompilation: no
 Packaged: 2016-09-01 18:57:25 UTC; dsangurd
-Depends: rafalib, limma, hgu133plus2.db, affy, tidyr, dplyr, tibble, stringr
+Depends: tidyr, readr, dplyr, tibble, stringr, rafalib, limma, hgu133plus2.db, affy

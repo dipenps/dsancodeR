@@ -1,10 +1,10 @@
-library(rafalib)
 library(tidyr)
 library(dplyr)
-library(affy)
 library(readxl)
 library(tibble)
 library(stringr)
+library(rafalib)
+library(affy)
 ###################
 # R hacks
 ###################
