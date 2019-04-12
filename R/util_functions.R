@@ -283,13 +283,16 @@ ensembl2sym <- function(eid, concatenate=F, striptail=T){
   ensid <- match(eid, ens$`Gene stable ID`)
   deprecated_ensid <- which(is.na(ensid))
   ercc <- grep("ERCC", eid)
-  #duplicated_ensid <- 
+  multimap_ensid <- which(ens$`Gene name`[ensid] %in% names(which(table( ens$`Gene name`[ensid])>1)))
+  #unique_sym <- unique(ens$`Gene name`[ensid])
+  #uid <- which(ens$`Gene name`[ensid] %in% unique_sym)
+  
   if(concatenate) {
     sym <- paste0(ens$`Gene name`[ensid], "_", str_sub(eid, 10,15))
   } else{
     sym <- ens$`Gene name`[ensid]
   }
-  return(list(genename=sym, deprecated_ensid=deprecated_ensid, ercc=ercc))
+  return(list(genename=sym, deprecated_ensid=deprecated_ensid, ercc=ercc, multimap_ensid=multimap_ensid))
 }
 
 GSA.read.gmt=function(filename){
@@ -703,7 +706,7 @@ remove_duplicate_rows <- function(mat, cname="Gene", method=c('average', 'remove
     outmat <- rbind(outmat, vec)
     rownames(outmat)[nrow(outmat)] <- dups[i]
   }
-  if(output='matrix') outmat <- data.matrix(outmat)
+  if(output=='matrix') outmat <- data.matrix(outmat)
   return(outmat)
 }
 
