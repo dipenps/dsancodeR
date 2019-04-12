@@ -680,6 +680,31 @@ limmacov <- function(x,covariates=NULL,fdr=0.05,thr=log2(1.5), mfilt=NULL, cfilt
   return(out)
 }
 
+remove_duplicate_rows <- function(mat, cname="Gene", method=c('average', 'remove'), sep=NA){
+  if(!"data.frame" %in% class(mat)) mat <- data.frame(mat, stringsAsFactors = F)
+  cid <- match(cname, colnames(mat))
+  if(!is.na(sep)) mat[[cname]] <- str_split(mat[[cname]], pattern = sep, simplify = T)[,1]
+  dups <- names(which(table(mat[[cname]])>1))
+  if(length(dups) == 0) {
+    outmat <- mat[,-cname]
+    rownames(outmat) <- mat[[cname]]
+    return(outmat)
+  }
+  outmat <- mat[-match(dups, mat[[cname]]),-cid]
+  
+  for(i in 1:length(dups)){
+    didx <- which(mat[[cname]]==dups[i])
+    if(method=='remove'){
+      vec <- data.matrix(mat[didx[1],-cid])
+    } else{
+      vec <- colMeans(mat[didx,-cid])
+    }
+    outmat <- rbind(outmat, vec)
+    rownames(outmat)[nrow(outmat)] <- dups[i]
+  }
+  return(outmat)
+}
+
 format_results_table <- function(tt, type='deseq'){
   if(type=='deseq') {
     out <- tt %>% dplyr::select(1,2,3,7)
