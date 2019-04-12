@@ -680,7 +680,8 @@ limmacov <- function(x,covariates=NULL,fdr=0.05,thr=log2(1.5), mfilt=NULL, cfilt
   return(out)
 }
 
-remove_duplicate_rows <- function(mat, cname="Gene", method=c('average', 'remove'), sep=NA){
+remove_duplicate_rows <- function(mat, cname="Gene", method=c('average', 'remove'), sep=NA, output='data.frame'){
+  if(length(method) > 0) method='average'
   if(!"data.frame" %in% class(mat)) mat <- data.frame(mat, stringsAsFactors = F)
   cid <- match(cname, colnames(mat))
   if(!is.na(sep)) mat[[cname]] <- str_split(mat[[cname]], pattern = sep, simplify = T)[,1]
@@ -702,6 +703,7 @@ remove_duplicate_rows <- function(mat, cname="Gene", method=c('average', 'remove
     outmat <- rbind(outmat, vec)
     rownames(outmat)[nrow(outmat)] <- dups[i]
   }
+  if(output='matrix') outmat <- data.matrix(outmat)
   return(outmat)
 }
 
