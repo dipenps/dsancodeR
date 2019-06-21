@@ -730,6 +730,7 @@ topTable2 <- function(x, ...){
 
 volcanoDESeq <- function(rmat, gstrip=F, top=10, vthr=1.5, fdr=0.05, print=TRUE, title=NULL){
   #if(gstrip) rmat$Gene <- str_split(rmat$row, "_", simplify=T)[,1]
+  rmat <- data.frame(rmat)
   rmat$col <- ifelse(rmat$padj < fdr & abs(rmat$log2FoldChange) > log2(vthr), 'red', 'lightgray')
   out <- ggplot(rmat, aes(log2FoldChange, -log10(padj))) + geom_point(col=rmat$col) + theme_bw() + xlab('log2FoldChange') + 
     ylab('-log10(FDR)') + geom_vline(xintercept=c(log2(vthr), log2(1/vthr))) + geom_hline(yintercept=-log10(fdr))
