@@ -130,7 +130,7 @@ plotscree <- function(x, title='Screeplot', ...){
 #   if(!is.null(group)) points(x$v[group, pc1], x$v[group, pc2], col=col, pch=19)
 # }
 
-plotpc <- function(x, pc1=1, pc2=2, group=NULL, title='PCA plot'){
+plotpc <- function(x, pc1=1, pc2=2, group=NULL, title='PCA plot', label=F){
   xax <- paste0('pc', pc1)
   yax <- paste0('pc', pc2)
   varex <- round(x$d^2*100/sum(x$d^2))
@@ -142,11 +142,11 @@ plotpc <- function(x, pc1=1, pc2=2, group=NULL, title='PCA plot'){
   } else{
     out <- out + geom_point()
   }
+  if(label) out <- out+ggrepel::geom_text_repel(aes(label=rownames(x$v)))
   print(out)
   #plot(x$v[,pc1], x$v[,pc2], xlab=paste0('PC', pc1), ylab=paste0('PC', pc2), pch=19, main=title, ...)
   #if(!is.null(group)) points(x$v[group, pc1], x$v[group, pc2], col=col, pch=19)
 }
-
 getOutlier <- function(x, method='median', thr=4){
   if(method=='median'){
     mx <- median(x)
@@ -699,7 +699,7 @@ remove_duplicate_rows <- function(mat, cname="Gene", method=c('average', 'remove
   for(i in 1:length(dups)){
     didx <- which(mat[[cname]]==dups[i])
     if(method=='remove'){
-      vec <- data.matrix(mat[didx[1],-cid])
+      vec <- mat[didx[1],-cid]
     } else{
       vec <- colMeans(mat[didx,-cid])
     }
