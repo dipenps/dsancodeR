@@ -272,13 +272,14 @@ filter_affy <- function(x, mthr=4, mcv=NULL){
   return(which(filt))
 }
 
-ensembl2sym <- function(eid, concatenate=F, striptail=T){
+ensembl2sym <- function(eid, concatenate=F, striptail=T, transcript=F){
   data(ensembl38)
   #ens <- readxl::read_excel('~/work/data/reference_genomes/hg38/ensembl_biomart_GRCh38_gene_info.xlsx')
   #ens <- readxl::read_excel('data/ensembl_biomart_GRCh38_gene_info.xlsx')
   
   ens <- ensembl38 %>% dplyr::select(`Gene stable ID`, `Gene name`) %>% unique
-  
+  if(transcript) ens <- ensembl38 %>% dplyr::select(`Transcript stable ID`, `Gene name`) %>% unique
+
   if(striptail) eid <- str_replace(eid, "\\.\\d+", "")
   ensid <- match(eid, ens$`Gene stable ID`)
   deprecated_ensid <- which(is.na(ensid))
