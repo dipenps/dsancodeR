@@ -281,7 +281,12 @@ ensembl2sym <- function(eid, concatenate=F, striptail=T, transcript=F){
   if(transcript) ens <- ensembl38 %>% dplyr::select(`Transcript stable ID`, `Gene name`) %>% unique
 
   if(striptail) eid <- str_replace(eid, "\\.\\d+", "")
-  ensid <- match(eid, ens$`Gene stable ID`)
+  if(transcript) {
+    ensid <- match(eid, ens$`Transcript stable ID`)
+  } else{
+    ensid <- match(eid, ens$`Gene stable ID`)
+  }
+  
   deprecated_ensid <- which(is.na(ensid))
   ercc <- grep("ERCC", eid)
   multimap_ensid <- which(ens$`Gene name`[ensid] %in% names(which(table( ens$`Gene name`[ensid])>1)))
@@ -466,6 +471,41 @@ boxplot2 <- function(f, ...){
 ###################
 # CompBio tools
 ###################
+
+importRsem <- function(DATPATH, pattern="genes.results", convertid=TRUE){
+  require(vroom)
+  require(dplyr)
+  require(dsancodeR)
+  tpmdf <- c()
+  cdf <- c()
+  
+  samples <- dir(DATAPATH, pattern=pattern)
+  
+  count <- 0
+  for(SNAME in samples){
+    count <- count+1; #print(count)
+    temp <- vroom::vroom(paste0(DATAPATH,"/",SNAME), col_types = c(
+      gene_id = col_character(),
+      `transcript_id(s)` = col_character(),
+      length = col_double(),
+      effective_length = col_double(),
+      expected_count = col_double(),
+      TPM = col_double(),
+      FPKM = col_double()
+    )) 
+    if(count==1){
+      tpmdf <- temp %>% dplyr::select(gene_id, TPM)
+      cdf <- temp %>% dplyr::select(gene_id, expected_count)
+    } else{
+      tpmdf <- tpmdf %>% left_join(temp %>% dplyr::select(gene_id, TPM), by='gene_id')
+      cdf <- cdf %>% left_join(temp %>% dplyr::select(gene_id, expected_count), by='gene_id')
+    }
+  }
+  colnames(tpmdf)[-1] <- colnames(cdf)[-1] <- stringr::str_replace(samples, pattern, "")
+  if(convertid) tpmdf$gene_id <- cdf$gene_id <- ensembl2sym(tpmdf$gene_id, concatenate = T)$genename
+  return(list(tpmdf=tpmdf, cdf=cdf))
+}
+
 ProbeSelect <- function(cdat, sdat, zcutoff=1.5){
   cmeans <- matrix(rep(rowMeans(cdat), ncol(sdat)), ncol=ncol(sdat), byrow=F)
   csd <- matrix(rep(apply(cdat,1,sd), ncol(sdat)), ncol=ncol(sdat), byrow=F)
