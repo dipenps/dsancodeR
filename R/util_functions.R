@@ -472,7 +472,7 @@ boxplot2 <- function(f, ...){
 # CompBio tools
 ###################
 
-importRsem <- function(DATPATH, pattern="genes.results", convertid=TRUE){
+importRsem <- function(DATAPATH, pattern="genes.results", convertid=TRUE){
   require(vroom)
   require(dplyr)
   require(dsancodeR)
